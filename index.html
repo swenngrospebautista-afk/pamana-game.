@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pamana: Teacher Edition Pro</title>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Quicksand:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    
+    <style>
+        :root {
+            --primary-blue: #0038a8;
+            --primary-red: #ce1126;
+            --primary-yellow: #fcd116;
+            --cream: #fdf5e6;
+            --dark-brown: #3e2723;
+            --glass: rgba(255, 255, 255, 0.95);
+            --font-main: 'Quicksand', sans-serif;
+            --font-heading: 'Fredoka One', cursive;
+            --base-fs: 16px;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: var(--font-main); background-color: #1a120b; font-size: var(--base-fs); }
+
+        #game-viewport { position: relative; width: 100vw; height: 100vh; background: url('image.png') no-repeat center center; background-size: cover; display: flex; justify-content: center; align-items: center; }
+        #overlay-tint { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.35); z-index: 1; }
+
+        .ui-panel { position: relative; z-index: 10; background: var(--glass); backdrop-filter: blur(10px); border-radius: 25px; border: 4px solid var(--dark-brown); padding: 30px; text-align: center; box-shadow: 0 12px 0 rgba(0,0,0,0.2); width: 90%; max-width: 550px; display: none; }
+        .active-panel { display: block; animation: panelPop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes panelPop { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+        #hud { position: absolute; top: 20px; width: 95%; display: flex; justify-content: space-between; align-items: center; z-index: 20; pointer-events: none; }
+        .hud-item { background: var(--glass); padding: 8px 16px; border-radius: 15px; border: 2px solid var(--dark-brown); font-family: var(--font-heading); color: var(--dark-brown); display: flex; align-items: center; gap: 8px; pointer-events: auto; }
+
+        #options-grid { display: grid; grid-template-columns: 1fr; gap: 10px; margin-top: 15px; }
+        .option-btn { background: white; border: 3px solid var(--dark-brown); border-radius: 12px; padding: 12px; font-size: 1.1rem; font-weight: 700; color: var(--dark-brown); cursor: pointer; font-family: var(--font-main); }
+        .option-btn.correct { background: #81c784; color: white; border-color: #2e7d32; }
+        .option-btn.wrong { background: #e57373; color: white; border-color: #c62828; }
+
+        /* --- MODALS --- */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 200; display: none; justify-content: center; align-items: center; }
+        .modal-content { background: var(--cream); width: 90%; max-width: 600px; border-radius: 20px; padding: 25px; max-height: 85vh; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+        
+        .settings-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #ddd; }
+        .teacher-section { background: #fff; padding: 15px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #ccc; text-align: left; }
+
+        .btn-gold { background: var(--primary-yellow); color: var(--dark-brown); border: none; padding: 10px 25px; font-family: var(--font-heading); font-size: 1.2rem; border-radius: 50px; cursor: pointer; box-shadow: 0 4px 0 #b7950b; margin: 5px; }
+        .btn-gold:active { transform: translateY(2px); box-shadow: 0 1px 0 #b7950b; }
+        .btn-settings { font-size: 28px; background: none; border: none; cursor: pointer; pointer-events: auto; }
+
+        #timer-container { width: 100%; height: 8px; background: #eee; border-radius: 4px; margin-top: 10px; display: none; overflow: hidden; }
+        #timer-bar { width: 100%; height: 100%; background: var(--primary-blue); }
+        .explanation-text { font-style: italic; color: #444; margin-top: 10px; border-top: 1px dashed #aaa; padding-top: 10px; font-size: 0.95rem; }
+    </style>
+</head>
+<body>
+
+<div id="game-viewport">
+    <div id="overlay-tint"></div>
+
+    <div id="hud">
+        <div class="hud-item">❤️ <span id="lives-val">3</span></div>
+        <div id="star-counter" class="hud-item">⭐ <span id="stars-val">0</span></div>
+        <div class="hud-item">📍 Lvl <span id="lvl-val">1</span></div>
+        <div>
+            <button class="btn-settings" onclick="openModal('teacher-modal')">👨‍🏫</button>
+            <button class="btn-settings" onclick="openModal('settings-modal')">⚙️</button>
+        </div>
+    </div>
+
+    <div id="panel-start" class="ui-panel active-panel">
+        <h1 style="font-family: var(--font-heading); font-size: 3rem; color: var(--primary-blue); margin: 0;">PAMANA</h1>
+        <p>Philippine History: Teacher Edition</p>
+        <button class="btn-gold" onclick="startGame()">START CLASS</button>
+    </div>
+
+    <div id="panel-quiz" class="ui-panel">
+        <h2 id="question-text">Question</h2>
+        <div id="timer-container"><div id="timer-bar"></div></div>
+        <div id="options-grid"></div>
+        <div id="explanation-box" class="explanation-text" style="display:none;"></div>
+        <button id="btn-next" class="btn-gold" style="display:none;" onclick="nextQuestion()">NEXT QUESTION</button>
+    </div>
+
+    <div id="panel-gameover" class="ui-panel">
+        <h1 style="color: var(--primary-red);">GAME OVER</h1>
+        <button class="btn-gold" onclick="location.reload()">RETRY</button>
+    </div>
+
+    <div id="panel-victory" class="ui-panel">
+        <h1 style="color: var(--primary-blue);">VICTORY! 🎉</h1>
+        <button class="btn-gold" onclick="location.reload()">FINISH</button>
+    </div>
+
+    <div id="settings-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h2 style="font-family: var(--font-heading);">Game Settings</h2>
+            <div class="settings-row"><span>Sound Effects</span><input type="checkbox" id="check-sfx" checked></div>
+            <div class="settings-row"><span>Question Timer</span><input type="checkbox" id="check-timer"></div>
+            <div class="settings-row"><span>Dark Overlay</span><input type="checkbox" id="check-dark" checked></div>
+            <div class="settings-row"><span>Font Size</span>
+                <select id="select-font">
+                    <option value="16px">Normal</option>
+                    <option value="20px">Large</option>
+                </select>
+            </div>
+            <button class="btn-gold" onclick="saveSettings()" style="width:100%;">SAVE</button>
+        </div>
+    </div>
+
+    <div id="teacher-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h2 style="font-family: var(--font-heading);">Teacher Dashboard</h2>
+            
+            <div class="teacher-section">
+                <strong>📥 Import Questions (CSV)</strong>
+                <p style="font-size: 0.8rem; margin: 5px 0;">Format: Level, Question, Opt1, Opt2, Opt3, Opt4, CorrectIndex(0-3), Explanation</p>
+                <input type="file" id="csv-upload" accept=".csv" style="font-size: 0.8rem;">
+                <button class="btn-gold" onclick="handleImport()" style="font-size: 0.9rem; padding: 5px 15px;">IMPORT</button>
+            </div>
+
+            <div class="teacher-section">
+                <strong>📤 Export Questions</strong>
+                <p style="font-size: 0.8rem; margin: 5px 0;">Save your current question bank to a CSV file.</p>
+                <button class="btn-gold" onclick="handleExport()" style="font-size: 0.9rem; padding: 5px 15px;">DOWNLOAD CSV</button>
+            </div>
+
+            <div class="teacher-section">
+                <strong>📊 Statistics</strong>
+                <p id="stats-summary">Questions Loaded: 0</p>
+                <button class="btn-gold" onclick="resetQuestions()" style="font-size: 0.8rem; background: #bbb; box-shadow: 0 4px 0 #777;">RESET TO DEFAULT</button>
+            </div>
+
+            <button class="btn-gold" onclick="closeModal('teacher-modal')" style="width:100%;">BACK TO MENU</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const DEFAULT_DATA = [
+        {lvl: 1, q: "Who is the Philippine National Hero?", a: ["Jose Rizal", "Andres Bonifacio", "Juan Luna", "Emilio Aguinaldo"], c: 0, e: "Jose Rizal inspired the revolution through his novels."},
+        {lvl: 1, q: "What is the capital city of the Philippines?", a: ["Cebu", "Manila", "Davao", "Vigan"], c: 1, e: "Manila has been the center of government since Spanish times."},
+        {lvl: 2, q: "Who was the 'Sublime Paralytic'?", a: ["Apolinario Mabini", "Melchora Aquino", "Juan Luna", "Gregorio del Pilar"], c: 0, e: "Mabini was the advisor to Aguinaldo."}
+    ];
+
+    let questions = JSON.parse(localStorage.getItem('pamana_db')) || DEFAULT_DATA;
+    let state = { score: 0, lives: 3, currentLvl: 1, currentQIndex: 0, activeQuestions: [], settings: { sfx: true, timer: false, dark: true, fontSize: '16px' } };
+
+    // --- MODAL LOGIC ---
+    function openModal(id) { 
+        document.getElementById(id).style.display = 'flex'; 
+        if(id === 'teacher-modal') document.getElementById('stats-summary').innerText = `Questions Loaded: ${questions.length}`;
+    }
+    function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
+    function saveSettings() {
+        state.settings.sfx = document.getElementById('check-sfx').checked;
+        state.settings.timer = document.getElementById('check-timer').checked;
+        state.settings.dark = document.getElementById('check-dark').checked;
+        state.settings.fontSize = document.getElementById('select-font').value;
+        document.getElementById('overlay-tint').style.background = state.settings.dark ? "rgba(0,0,0,0.35)" : "rgba(0,0,0,0)";
+        document.body.style.fontSize = state.settings.fontSize;
+        closeModal('settings-modal');
+    }
+
+    // --- IMPORT / EXPORT LOGIC ---
+    function handleImport() {
+        const file = document.getElementById('csv-upload').files[0];
+        if (!file) return alert("Please select a CSV file first.");
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const text = e.target.result;
+            const rows = text.split('\n').slice(1); // Skip header
+            const newQuestions = [];
+
+            rows.forEach(row => {
+                const cols = row.split(',').map(c => c.trim());
+                if (cols.length >= 8) {
+                    newQuestions.push({
+                        lvl: parseInt(cols[0]),
+                        q: cols[1],
+                        a: [cols[2], cols[3], cols[4], cols[5]],
+                        c: parseInt(cols[6]),
+                        e: cols[7]
+                    });
+                }
+            });
+
+            if (newQuestions.length > 0) {
+                questions = newQuestions;
+                localStorage.setItem('pamana_db', JSON.stringify(questions));
+                alert(`Successfully imported ${newQuestions.length} questions!`);
+                location.reload();
+            } else {
+                alert("Invalid CSV format.");
+            }
+        };
+        reader.readAsText(file);
+    }
+
+    function handleExport() {
+        let csvContent = "data:text/csv;charset=utf-8,Level,Question,Option1,Option2,Option3,Option4,CorrectIndex,Explanation\n";
+        questions.forEach(q => {
+            const row = [q.lvl, `"${q.q}"`, `"${q.a[0]}"`, `"${q.a[1]}"`, `"${q.a[2]}"`, `"${q.a[3]}"`, q.c, `"${q.e}"`].join(",");
+            csvContent += row + "\n";
+        });
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", "pamana_questions.csv");
+        document.body.appendChild(link);
+        link.click();
+    }
+
+    function resetQuestions() {
+        if(confirm("Reset all questions to default?")) {
+            localStorage.removeItem('pamana_db');
+            location.reload();
+        }
+    }
+
+    // --- GAME ENGINE ---
+    function startGame() {
+        state.score = 0; state.lives = 3; state.currentLvl = 1;
+        state.activeQuestions = questions.filter(q => q.lvl === state.currentLvl).sort(() => 0.5 - Math.random());
+        state.currentQIndex = 0;
+        updateHud();
+        switchPanel('panel-quiz');
+        loadQuestion();
+    }
+
+    function loadQuestion() {
+        if (state.currentQIndex >= state.activeQuestions.length) return advanceLevel();
+        const q = state.activeQuestions[state.currentQIndex];
+        document.getElementById('question-text').innerText = q.q;
+        document.getElementById('explanation-box').style.display = 'none';
+        document.getElementById('btn-next').style.display = 'none';
+        
+        const grid = document.getElementById('options-grid');
+        grid.innerHTML = '';
+        q.a.forEach((opt, idx) => {
+            const btn = document.createElement('button');
+            btn.className = 'option-btn';
+            btn.innerText = opt;
+            btn.onclick = () => checkAnswer(idx, btn);
+            grid.appendChild(btn);
+        });
+        if (state.settings.timer) startTimer();
+    }
+
+    function checkAnswer(idx, btn) {
+        clearInterval(state.timerInterval);
+        const q = state.activeQuestions[state.currentQIndex];
+        const options = document.querySelectorAll('.option-btn');
+        options.forEach(b => b.disabled = true);
+
+        if (idx === q.c) {
+            btn.classList.add('correct');
+            state.score++;
+            if(state.settings.sfx) playBeep(600, 900);
+            confetti({ particleCount: 30, origin: { y: 0.8 } });
+        } else {
+            if(btn) btn.classList.add('wrong');
+            options[q.c].classList.add('correct');
+            state.lives--;
+            if(state.settings.sfx) playBeep(150, 100);
+        }
+
+        document.getElementById('explanation-box').innerText = q.e;
+        document.getElementById('explanation-box').style.display = 'block';
+        document.getElementById('btn-next').style.display = 'inline-block';
+        updateHud();
+        if (state.lives <= 0) setTimeout(() => switchPanel('panel-gameover'), 2000);
+    }
+
+    function nextQuestion() { state.currentQIndex++; loadQuestion(); }
+
+    function advanceLevel() {
+        state.currentLvl++;
+        const nextSet = questions.filter(q => q.lvl === state.currentLvl);
+        if (nextSet.length === 0) switchPanel('panel-victory');
+        else { state.activeQuestions = nextSet; state.currentQIndex = 0; updateHud(); loadQuestion(); }
+    }
+
+    function switchPanel(id) { document.querySelectorAll('.ui-panel').forEach(p => p.classList.remove('active-panel')); document.getElementById(id).classList.add('active-panel'); }
+    function updateHud() { document.getElementById('lives-val').innerText = state.lives; document.getElementById('stars-val').innerText = state.score; document.getElementById('lvl-val').innerText = state.currentLvl; }
+    
+    function playBeep(fStart, fEnd) {
+        const ctx = new AudioContext(); const o = ctx.createOscillator(); const g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination); o.frequency.setValueAtTime(fStart, ctx.currentTime);
+        o.frequency.exponentialRampToValueAtTime(fEnd, ctx.currentTime + 0.2);
+        g.gain.setValueAtTime(0.1, ctx.currentTime); g.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.3);
+        o.start(); o.stop(ctx.currentTime + 0.3);
+    }
+
+    function startTimer() {
+        let val = 100; document.getElementById('timer-container').style.display = 'block';
+        state.timerInterval = setInterval(() => {
+            val -= 1.5; document.getElementById('timer-bar').style.width = val + "%";
+            if (val <= 0) { clearInterval(state.timerInterval); checkAnswer(-1, null); }
+        }, 150);
+    }
+</script>
+</body>
+</html>
